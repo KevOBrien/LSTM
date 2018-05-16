@@ -67,7 +67,7 @@ class LSTM():
 
         # Biases in fully connected final output layer
         # (numOutputs)
-        self.denseOutputLayerWBiases = tf.Variable(
+        self.denseOutputLayerBiases = tf.Variable(
             tf.random_normal([numOutputs])
         )
 
@@ -146,12 +146,12 @@ class LSTM():
             # (batchSize, numUnitsInFinalHiddenLayer)
             finalSequenceOutput = LSTMOutputs[-1]
             # (batchSize, numOutputs)
-            finalSequenceOutput = tf.matmul(finalSequenceOutput, self.denseOutputLayerWeights) + self.denseOutputLayerWBiases
+            finalSequenceOutput = tf.matmul(finalSequenceOutput, self.denseOutputLayerWeights) + self.denseOutputLayerBiases
             return finalSequenceOutput
         else:
             # [sequenceLength * (batchSize, numOutputs)]
             sequenceOutputs = [
-                tf.matmul(output, self.denseOutputLayerWeights) + self.denseOutputLayerWBiases
+                tf.matmul(output, self.denseOutputLayerWeights) + self.denseOutputLayerBiases
                 for output in LSTMOutputs
             ]
             return sequenceOutputs
