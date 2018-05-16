@@ -1,6 +1,3 @@
-# KEVIN O'BRIEN
-# 12498432
-
 import os
 
 import tensorflow as tf
