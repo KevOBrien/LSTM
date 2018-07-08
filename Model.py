@@ -1,3 +1,6 @@
+# KEVIN O'BRIEN
+# 12498432
+
 import os
 
 import tensorflow as tf
@@ -13,7 +16,7 @@ class LSTM():
         sequenceLength,     # Number of unrolled time steps
         unitsPerLayer,      # List of number of LSTM units per stacked LSTM cell
         stateful=False,     # Stateful or stateless LSTM
-        manyToOne=True,     # Many-To-One or Many-To-Many network
+        manyToOne=False,     # Many-To-One or Many-To-Many network
         regularise=False    # Add L2 regularisation to loss calculation
     ):
 
@@ -28,8 +31,8 @@ class LSTM():
         #####################################################
         # Batch Placeholders
         #####################################################
-        # Variables to be set per batch
 
+        # Variables to be set per batch
         self.batchSize = tf.placeholder(tf.int32, [])
         self.learningRate = tf.placeholder(tf.float32, [])
         self.dropoutRate = tf.placeholder(tf.float32, [])
@@ -67,7 +70,7 @@ class LSTM():
 
         # Biases in fully connected final output layer
         # (numOutputs)
-        self.denseOutputLayerBiases = tf.Variable(
+        self.denseOutputLayerWBiases = tf.Variable(
             tf.random_normal([numOutputs])
         )
 
@@ -88,6 +91,7 @@ class LSTM():
         self.__buildTensorFlowGraph()                           # Builds static graph prior to dynamic runtime
         self.saver = tf.train.Saver()                           # Used to save/restore saved trained models
         self.session.run(tf.global_variables_initializer())     # Initialises all variables prior to dynamic runtime
+        self.session.graph.finalize()                           # Avoids memory leak by ensuring operations don't create new graph nodes per iteration
 
     #########################################################
     # Private Methods
@@ -135,7 +139,7 @@ class LSTM():
         if self.regularise:
             self.loss += self.__regularisation()
         # Performs backpropagation
-        self.lossMinimiser = self.SGD.minimize(self.loss)
+        self.train = self.SGD.minimize(self.loss)
 
         # Calculates accuracy value
         self.accuracy = self.__calculateAccuracy()
@@ -146,12 +150,12 @@ class LSTM():
             # (batchSize, numUnitsInFinalHiddenLayer)
             finalSequenceOutput = LSTMOutputs[-1]
             # (batchSize, numOutputs)
-            finalSequenceOutput = tf.matmul(finalSequenceOutput, self.denseOutputLayerWeights) + self.denseOutputLayerBiases
+            finalSequenceOutput = tf.matmul(finalSequenceOutput, self.denseOutputLayerWeights) + self.denseOutputLayerWBiases
             return finalSequenceOutput
         else:
             # [sequenceLength * (batchSize, numOutputs)]
             sequenceOutputs = [
-                tf.matmul(output, self.denseOutputLayerWeights) + self.denseOutputLayerBiases
+                tf.matmul(output, self.denseOutputLayerWeights) + self.denseOutputLayerWBiases
                 for output in LSTMOutputs
             ]
             return sequenceOutputs
@@ -182,7 +186,7 @@ class LSTM():
 
     def __calculateAccuracy(self):
         """Calculates percentage of correct predictions in the batch."""
-        correctPredictions = tf.equal(self.labels, self.roundedPredictions)
+        correctPredictions = tf.equal(tf.argmax(self.labels, axis=-1), tf.argmax(self.predictions, axis=-1))
         accuracy = tf.reduce_mean(tf.cast(correctPredictions, tf.float32))
         return accuracy
 
@@ -208,27 +212,37 @@ class LSTM():
         if not self.stateful:
             self.resetState()
 
-    def train(self):
-        """Performs entire forward feed through and backpropagation."""
-        return self.session.run(self.lossMinimiser, self.batchDict)
-
-    def get(self, operations):
+    def run(self, operations=None, train=False):
         """Returns results of inputted list of operations."""
-        ops = []
-        for op in operations:
-            if op == 'labels':
-                ops.append(self.labels)
-            if op == 'outputs':
-                ops.append(self.outputs)
-            if op == 'predictions':
-                ops.append(self.predictions)
-            if op == 'roundedPredictions':
-                ops.append(self.roundedPredictions)
-            if op == 'loss':
-                ops.append(self.loss)
-            if op == 'accuracy':
-                ops.append(self.accuracy)
-        return self.session.run(ops, self.batchDict)
+        if not type(operations) is list:
+            operations = [operations]
+
+        if train:
+            ops = [self.train]
+        else:
+            ops = []
+
+        if operations is not None:
+            for op in operations:
+                if op == 'labels':
+                    ops.append(self.labels)
+                if op == 'outputs':
+                    ops.append(self.outputs)
+                if op == 'predictions':
+                    ops.append(self.predictions)
+                if op == 'roundedPredictions':
+                    ops.append(self.roundedPredictions)
+                if op == 'loss':
+                    ops.append(self.loss)
+                if op == 'accuracy':
+                    ops.append(self.accuracy)
+
+        if (train and len(ops) == 2) or (not train and len(ops) == 1):
+            return self.session.run(ops, self.batchDict)[-1]
+        elif train:
+            return self.session.run(ops, self.batchDict)[1:]
+        else:
+            return self.session.run(ops, self.batchDict)
 
     def save(self, modelName="LSTM"):
         """Saves entire model."""
