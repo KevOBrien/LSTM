@@ -1,6 +1,3 @@
-# KEVIN O'BRIEN
-# 12498432
-
 import os
 
 import tensorflow as tf
@@ -33,28 +30,28 @@ class LSTM():
         #####################################################
 
         # Variables to be set per batch
-        self.batchSize = tf.placeholder(tf.int32, [])
-        self.learningRate = tf.placeholder(tf.float32, [])
-        self.dropoutRate = tf.placeholder(tf.float32, [])
+        self.batchSize = tf.placeholder(tf.int32, shape=[])
+        self.learningRate = tf.placeholder(tf.float32, shape=[])
+        self.dropoutRate = tf.placeholder(tf.float32, shape=[])
 
         # Intuitive shape for inputs and outputs to be fed in as
-        # (batchSize, sequenceLength, numFeatures)
+        # shape = [batchSize, sequenceLength, numFeatures]
         self.rawInputs = tf.placeholder(
-            tf.float32, [None, sequenceLength, numFeatures]
+            tf.float32, shape=[None, sequenceLength, numFeatures]
         )
-        # (batchSize, sequenceLength, numOutputs)
+        # shape = [batchSize, sequenceLength, numOutputs]
         self.rawLabels = tf.placeholder(
-            tf.float32, [None, sequenceLength, numOutputs]
+            tf.float32, shape=[None, sequenceLength, numOutputs]
         )
 
         # Reshaped for better management using TensorFlow
-        # [sequenceLength * (batchSize, numFeatures)]
+        # shape = [sequenceLength * (batchSize, numFeatures)]
         self.inputs = tf.unstack(self.rawInputs, axis=1)
         # [sequenceLength * (batchSize, numOutputs)]
         self.labels = tf.unstack(self.rawLabels, axis=1)
 
         # If Many-To-One network, only last output is required
-        # (batchSize, numOutputs)
+        # shape = [batchSize, numOutputs]
         if self.manyToOne:
             self.labels = self.labels[-1]
 
@@ -63,15 +60,15 @@ class LSTM():
         #####################################################
 
         # Weights in fully connected final output layer
-        # (numUnitsInFinalHiddenLayer, numOutputs)
+        # shape=[numUnitsInFinalHiddenLayer, numOutputs]
         self.denseOutputLayerWeights = tf.Variable(
-            tf.random_normal([unitsPerLayer[-1], numOutputs])
+            tf.random_normal(shape=[unitsPerLayer[-1], numOutputs])
         )
 
         # Biases in fully connected final output layer
-        # (numOutputs)
+        # shape=[numOutputs]
         self.denseOutputLayerWBiases = tf.Variable(
-            tf.random_normal([numOutputs])
+            tf.random_normal(shape=[numOutputs])
         )
 
         #####################################################
@@ -115,7 +112,7 @@ class LSTM():
         self.resetState()
 
         # Produces output at final LSTM cell, prior to dense output layer
-        # [sequenceLength * (batchSize, numCellsInFinalHiddenLayer)]
+        # shape = [sequenceLength * (batchSize, numCellsInFinalHiddenLayer)]
         LSTMOutputs, self.state = tf.nn.static_rnn(
             self.network,
             self.inputs,
@@ -124,12 +121,12 @@ class LSTM():
         )
 
         # Processes LSTM outputs throguh final dense output layer
-        # (batchSize, numOutputs) OR [sequenceLength * (batchSize, numOutputs)]
+        # shape = [batchSize, numOutputs] OR [sequenceLength * (batchSize, numOutputs)]
         self.outputs = self.__feedThroughDenseOutputLayer(LSTMOutputs)
 
         # Activate outputs to obtain final predictions
         # Stores their rounded values to compare with labels
-        # (batchSize, numOutputs) OR [sequenceLength * (batchSize, numOutputs)]
+        # shape = [batchSize, numOutputs] OR [sequenceLength * (batchSize, numOutputs)]
         self.predictions = self.__activateOutputs()
         self.roundedPredictions = tf.round(self.predictions)
 
@@ -147,13 +144,13 @@ class LSTM():
     def __feedThroughDenseOutputLayer(self, LSTMOutputs):
         """Dense fully-connected layer between final LSTM layer and network outputs."""
         if self.manyToOne:
-            # (batchSize, numUnitsInFinalHiddenLayer)
+            # shape = [batchSize, numUnitsInFinalHiddenLayer]
             finalSequenceOutput = LSTMOutputs[-1]
-            # (batchSize, numOutputs)
+            # shape = [batchSize, numOutputs]
             finalSequenceOutput = tf.matmul(finalSequenceOutput, self.denseOutputLayerWeights) + self.denseOutputLayerWBiases
             return finalSequenceOutput
         else:
-            # [sequenceLength * (batchSize, numOutputs)]
+            # shape = [sequenceLength * (batchSize, numOutputs)]
             sequenceOutputs = [
                 tf.matmul(output, self.denseOutputLayerWeights) + self.denseOutputLayerWBiases
                 for output in LSTMOutputs
@@ -164,10 +161,10 @@ class LSTM():
         """Applies activation function to output neurons."""
         activations = tf.nn.sigmoid(self.outputs)
         if self.manyToOne:
-            # (batchSize, numOutputs)
+            # shape = [batchSize, numOutputs]
             return activations
         else:
-            # [sequenceLength * (batchSize, numOutputs)]
+            # shape = [sequenceLength * (batchSize, numOutputs)]
             return tf.unstack(activations)
 
     def __calculateLoss(self):
